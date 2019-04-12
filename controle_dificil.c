@@ -36,7 +36,6 @@ int main(int argc, char *argv[])
 
 	struct timespec t;
         int interval = 10000000; /* 10ms*/
-        //int interval = 1000000000;
 
         clock_gettime(CLOCK_MONOTONIC ,&t);
         /* start after one second */
@@ -60,11 +59,12 @@ int main(int argc, char *argv[])
 	fclose(arquivo);
 
 	int ciclosT = 0; // Quantos ciclos de 10ms se passaram
-	int ciclosN = 0;
 	int ciclosTela = 0;
 	int ciclosArmazena = 0;
-	float Ta, T, Ti, No, H, Q, Qu, Ni, Nic, Na, Nf, Ki, Qc, Nt, erroT, erroH, integralErro, Natu, Qt;
-	integralErro=0;
+	float Ta, T, Ti, No, H, Q, Qu, Ni, Nic, Nfc, Na, Nf, Ki, Qc, Nt, Qt;
+	float erroH, erroT;
+	
+	float integralErro=0;
 	int leitura = 0;
 	
 	struct timespec tInicio, tTemperatura, tNivel;
@@ -111,52 +111,37 @@ int main(int argc, char *argv[])
 			integralErro += erroT*0.03;
 			
 			Qc = Kp*erroT + Ki*integralErro;
-			Nic = -50*erroT;
+			Nfc= -40*erroT;
 			Nt = (Ni + Na - Nf - No)/(B*P);
-
-			// Qc =0;
-			// Saturacoes dos atuadores:
-			// Ni: 100
-			// Na: 10
-			// Nf: 100
-			// Entrada maxima de agua: 110
-			// Q: 1.000.000
-
 			
 			Qt = Q + Ni*S*(Ti-T) + Na*S*(80-T) - (T-Ta)/R; // Q atuando no sistema
 			
-			if(erroT > 0) // Deve-se aquecer
+			if(erroT > 0) 
 			{
 				Q = MIN(1000000,Qc - (Qt - Q));
 				Qu = Q;
-				Ni =0;
+				Ni = 0;
+				Nf = 0;
+				
 			} else {
+				Ni = 10;
+				Nf = 5;
 				Q = 0;
-				Ni = MIN(100,100*Nic);
-				printf("entrou Ni");
+					if(erroH > 0.05) {
+						Nf = 15;
+					}
+					if (erroT < 0.05) {
+						Ni = 15;
+					}
 			}
 			if(Q < 0) {
 				Q = 0;
 			}
-			if(erroH < 0.001 && erroT>0) {
-				Na=0;
-			//	Ni=0;
-			//	Nf=0;
-				Nf=MIN(100,Nt);
-			} if (erroH > 0.001) {
-				Ni = MIN(100, Kni*Nic);
-			}
-			if (erroH < 0 && erroT < 0){
-				Nf=MIN(100,4000*Nt);
-			}
-
-
 
 			atua(socket_cliente, "aq-", Q);
 			atua(socket_cliente, "ani", Ni);
 			atua(socket_cliente, "ana", Na);
 			atua(socket_cliente, "anf", Nf);
-			ciclosN = 0;
 			ciclosT = 0;
 			
 			clock_gettime(CLOCK_MONOTONIC ,&tTemperatura); // Adquire o tempo ao fim da execução do bloco de controle de temperatura
@@ -164,73 +149,6 @@ int main(int argc, char *argv[])
 			if(indexT < LIMITE){
 				unsigned long int nanoSecsTemperatura = (tTemperatura.tv_sec*1000000000 + tTemperatura.tv_nsec) - (tInicio.tv_sec*1000000000 + tInicio.tv_nsec);
 				temposTemperatura[indexT++] = nanoSecsTemperatura;
-			}
-
-			float Ki;
-			Kp = 1000;
-			Ki = 10;
-			
-			// // Nt = Kp*erroH + Ki*integralErro;
-			// integralErro += erroH*0.07;
-			
-			// // Nt = Ni + Na - Nf - No
-			// // No eh perturbacao
-			// Natu = Ni + Na - Nf - No;
-			
-			// if(erroH > 0) // Deve-se encher
-			// {
-			// 	enchendo = 1;
-			// 	Ni = MIN(100, Nt-Natu);
-			// 	Nf = 0;
-			// 	Natu = Ni + Na - Nf - No;
-			// 	if(esfriando == 0)
-			// 	{
-			// 		// Ativa Na;
-			// 		if(Natu == Nt){
-			// 			if(Ni <= 10)
-			// 			{
-			// 				Na = Ni;
-			// 				Ni = 0;
-			// 			}
-			// 			else {
-			// 				Ni -= 10;
-			// 				Na = 10;
-			// 			}
-			// 			Natu = Ni + Na - Nf - No;
-			// 		} else {
-			// 			Na = MIN(10, Natu);
-			// 			Natu = Ni + Na - Nf - No;
-			// 		}
-			// 	} else Na = 0;
-				
-			// } else if(erroH < 0){ // Deve-se esvaziar
-			// 	enchendo = 0;
-			// 	Na = 0;
-			// 	Ni = No;
-			// 	Nf = MIN(100, Natu);
-			// 	Natu = Ni + Na - Nf - No;
-			// 	integralErro = 0;
-			// } else {
-			// 	enchendo = 0;
-			// 	Na = 0;
-			// 	Ni = 0;
-			// 	Nf = 0;
-			// 	Natu =  -No;
-			// }
-			
-			// Saturacoes dos atuadores:
-			// Ni: 100
-			// Na: 10
-			// Nf: 100
-			// Entrada maxima de agua: 110
-			// Q: 1.000.000
-
-			
-			clock_gettime(CLOCK_MONOTONIC ,&tNivel); // Adquire o tempo ao fim da execução do bloco de controle de nível
-			
-			if(indexN < LIMITE){
-				unsigned long int nanoSecsNivel = (tNivel.tv_sec*1000000000 + tNivel.tv_nsec) - (tInicio.tv_sec*1000000000 + tInicio.tv_nsec);
-				temposNivel[indexN++] = nanoSecsNivel;
 			}
 		}
 		
@@ -240,20 +158,15 @@ int main(int argc, char *argv[])
 		{
 			system("clear");
 			system("clear");
-			printf("================== CONTROLE DO AQUECEDOR ==================\n\n");
+			printf("_________________________________________________________\n\n");
 			printf("  H_ref = %f\t\tT_ref = %f\n\n", href, tref);
 			printf("  Valores atuais:\n");
 			printf("  H: %f\t\t\tT: %f\n", H, T);
 			printf("  Ta: %f\t\t\tNa: %f\n", Ta, Na);
 			printf("  Ti: %f\t\t\tNi: %f\n", Ti, Ni);
 			printf("  No: %f\t\t\tNf: %f\n", No, Nf);
-			printf("  Q: %f\n", Q);
-			printf("  Qu: %f\n", Qu);
-			printf("  ErroH: %f\n", erroH);
-			printf("  ErroT: %f\n", erroT);
-			printf("  Nic: %f\n", Nic);
-
-			printf("\n===========================================================");
+			printf("  ET: %f\t\t\tEH: %f\n", erroT, erroH);
+			printf("\n__________________________________________________________");
 
 			fflush(stdout);
 			
@@ -281,7 +194,6 @@ int main(int argc, char *argv[])
                         t.tv_sec++;
                 }
 		ciclosT++;
-		ciclosN++;
 		ciclosTela++;
 		ciclosArmazena++;
 		
