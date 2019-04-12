@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
 	int ciclosN = 0;
 	int ciclosTela = 0;
 	int ciclosArmazena = 0;
-	float Ta, T, Ti, No, H, Q, Ni, Na, Nf, Qt, Nt, erroT, erroH, integralErro, Natu, Qatu;
+	float Ta, T, Ti, No, H, Q, Qu, Ni, Nic, Na, Nf, Ki, Qc, Nt, erroT, erroH, integralErro, Natu, Qt;
 	integralErro=0;
 	int leitura = 0;
 	
@@ -90,47 +90,73 @@ int main(int argc, char *argv[])
 		int esfriando = 0;
 		int enchendo = 0;
 		
-		if(ciclosT == 9)
+		if(ciclosT == 3)
 		{
-			float Kp, Kd;
+			float Kp, Kd, Kni;
 			T = leSensor(socket_cliente, "st-0");
 			H = leSensor(socket_cliente, "sh-0");
+			No = leSensor(socket_cliente, "sno0");
+			Ti = leSensor(socket_cliente, "sti0");
+			Ta = leSensor(socket_cliente, "sta0");
+
+
 			float C = S*P*B*H;
 			int t0 = 10; // Tempo de 67% em segundos
 		
 			erroT = tref - T;
-			Kp = C/t0 + 10;
-			Kd = t0*Kp - C;
+			erroH = href - H;
+			Kp = C/t0 + 40;
+			Ki = 10;
+			Kni = 100*erroH;
+			integralErro += erroT*0.03;
 			
-			// Qt = Kp*erroT + Kd*(erroT/0.09);
-			Qt =0;
+			Qc = Kp*erroT + Ki*integralErro;
+			Nic = -50*erroT;
+			Nt = (Ni + Na - Nf - No)/(B*P);
+
+			// Qc =0;
 			// Saturacoes dos atuadores:
 			// Ni: 100
 			// Na: 10
 			// Nf: 100
 			// Entrada maxima de agua: 110
 			// Q: 1.000.000
-			// Qt = Q + Ni*S*(Ti-T) + Na*S*(80-T) - (T-Ta)/R
-			Ti = leSensor(socket_cliente, "sti0");
-			Ta = leSensor(socket_cliente, "sta0");
+
 			
-			Qatu = Q + Ni*S*(Ti-T) + Na*S*(80-T) - (T-Ta)/R; // Q atuando no sistema
+			Qt = Q + Ni*S*(Ti-T) + Na*S*(80-T) - (T-Ta)/R; // Q atuando no sistema
 			
 			if(erroT > 0) // Deve-se aquecer
 			{
-				esfriando = 0; // Aquecendo
-				Q = MIN(1000000, (Qatu - Q));
+				Q = MIN(1000000,Qc - (Qt - Q));
+				Qu = Q;
+				Ni =0;
 			} else {
-				esfriando = 1;
 				Q = 0;
+				Ni = MIN(100,100*Nic);
+				printf("entrou Ni");
 			}
 			if(Q < 0) {
 				Q = 0;
 			}
+			if(erroH < 0.001 && erroT>0) {
+				Na=0;
+			//	Ni=0;
+			//	Nf=0;
+				Nf=MIN(100,Nt);
+			} if (erroH > 0.001) {
+				Ni = MIN(100, Kni*Nic);
+			}
+			if (erroH < 0 && erroT < 0){
+				Nf=MIN(100,4000*Nt);
+			}
 
-			Qatu = Q + Ni*S*(Ti-T) + Na*S*(80-T) - (T-Ta)/R;
+
 
 			atua(socket_cliente, "aq-", Q);
+			atua(socket_cliente, "ani", Ni);
+			atua(socket_cliente, "ana", Na);
+			atua(socket_cliente, "anf", Nf);
+			ciclosN = 0;
 			ciclosT = 0;
 			
 			clock_gettime(CLOCK_MONOTONIC ,&tTemperatura); // Adquire o tempo ao fim da execução do bloco de controle de temperatura
@@ -144,56 +170,53 @@ int main(int argc, char *argv[])
 			Kp = 1000;
 			Ki = 10;
 			
-			H = leSensor(socket_cliente, "sh-0");
-			erroH = href - H;
-			integralErro += erroH*0.07;
-			// Nt = Kp*erroH + Ki*integralErro;
+			// // Nt = Kp*erroH + Ki*integralErro;
+			// integralErro += erroH*0.07;
 			
-			// Nt = Ni + Na - Nf - No
-			// No eh perturbacao
-			No = leSensor(socket_cliente, "sno0");
-			Natu = Ni + Na - Nf - No;
+			// // Nt = Ni + Na - Nf - No
+			// // No eh perturbacao
+			// Natu = Ni + Na - Nf - No;
 			
-			if(erroH > 0) // Deve-se encher
-			{
-				enchendo = 1;
-				Ni = MIN(100, Nt-Natu);
-				Nf = 0;
-				Natu = Ni + Na - Nf - No;
-				if(esfriando == 0)
-				{
-					// Ativa Na;
-					if(Natu == Nt){
-						if(Ni <= 10)
-						{
-							Na = Ni;
-							Ni = 0;
-						}
-						else {
-							Ni -= 10;
-							Na = 10;
-						}
-						Natu = Ni + Na - Nf - No;
-					} else {
-						Na = MIN(10, Natu);
-						Natu = Ni + Na - Nf - No;
-					}
-				} else Na = 0;
+			// if(erroH > 0) // Deve-se encher
+			// {
+			// 	enchendo = 1;
+			// 	Ni = MIN(100, Nt-Natu);
+			// 	Nf = 0;
+			// 	Natu = Ni + Na - Nf - No;
+			// 	if(esfriando == 0)
+			// 	{
+			// 		// Ativa Na;
+			// 		if(Natu == Nt){
+			// 			if(Ni <= 10)
+			// 			{
+			// 				Na = Ni;
+			// 				Ni = 0;
+			// 			}
+			// 			else {
+			// 				Ni -= 10;
+			// 				Na = 10;
+			// 			}
+			// 			Natu = Ni + Na - Nf - No;
+			// 		} else {
+			// 			Na = MIN(10, Natu);
+			// 			Natu = Ni + Na - Nf - No;
+			// 		}
+			// 	} else Na = 0;
 				
-			} else if(erroH < 0){ // Deve-se esvaziar
-				enchendo = 0;
-				Na = 0;
-				Ni = No;
-				Nf = MIN(100, Natu);
-				Natu = Ni + Na - Nf - No;
-				integralErro = 0;
-			} else {
-				enchendo = 0;
-				Na = 0;
-				Ni = 0;
-				Nf = 0;
-				Natu =  -No;
-			}
+			// } else if(erroH < 0){ // Deve-se esvaziar
+			// 	enchendo = 0;
+			// 	Na = 0;
+			// 	Ni = No;
+			// 	Nf = MIN(100, Natu);
+			// 	Natu = Ni + Na - Nf - No;
+			// 	integralErro = 0;
+			// } else {
+			// 	enchendo = 0;
+			// 	Na = 0;
+			// 	Ni = 0;
+			// 	Nf = 0;
+			// 	Natu =  -No;
+			// }
 			
 			// Saturacoes dos atuadores:
 			// Ni: 100
@@ -201,10 +224,7 @@ int main(int argc, char *argv[])
 			// Nf: 100
 			// Entrada maxima de agua: 110
 			// Q: 1.000.000
-			atua(socket_cliente, "ani", Ni);
-			atua(socket_cliente, "ana", Na);
-			atua(socket_cliente, "anf", Nf);
-			ciclosN = 0;
+
 			
 			clock_gettime(CLOCK_MONOTONIC ,&tNivel); // Adquire o tempo ao fim da execução do bloco de controle de nível
 			
@@ -228,7 +248,13 @@ int main(int argc, char *argv[])
 			printf("  Ti: %f\t\t\tNi: %f\n", Ti, Ni);
 			printf("  No: %f\t\t\tNf: %f\n", No, Nf);
 			printf("  Q: %f\n", Q);
+			printf("  Qu: %f\n", Qu);
+			printf("  ErroH: %f\n", erroH);
+			printf("  ErroT: %f\n", erroT);
+			printf("  Nic: %f\n", Nic);
+
 			printf("\n===========================================================");
+
 			fflush(stdout);
 			
 			ciclosTela = 0;
