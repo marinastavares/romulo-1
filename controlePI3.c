@@ -1,4 +1,3 @@
- //Bibliotecas
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <string.h>
@@ -10,41 +9,32 @@
 #include <netdb.h>
 #include <time.h>
 
-//Defines
 #define FALHA 1
 #define	TAM_MEU_BUFFER	1000
 #define NSEC_PER_SEC    (1000000000) // The number of nsecs per sec
-#define num_ciclos 10000
+#define num_ciclos 100000
 #define S 4184
 #define P 1000
 #define B 4
 #define R 0.001
-#define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
+#define Href 2
 
-//Variaveis
 int porta_destino;
 int socket_local;
+int t0;
 struct sockaddr_in endereco_destino;
-double SPtemp;
-double Etemp;
-double Ctemp;
-unsigned long int tempo[num_ciclos];
-
-// Variáveis a serem utilizadas
-float T, H, Ta, Ti, No, C;
-float erroH, erroT;
-float integralErro;
-
-
-// Controle
-double Ktemp = 500000.0;
-double Ktemp_max = 1000000.0;
-double Ktemp_min = 0.0;
+float T, Ta, Ti;
+float No, Nt, Ni, Nf, Na;
+float Q, Qc, Qu, Qt;
+float H, C;
+float Tref, erroT, erroH;
+float Kp, Ki, Kni;
 
 char msg_enviada[TAM_MEU_BUFFER];
-char msg_recebida[TAM_MEU_BUFFER];
-int nrec;
+char valor_recebido[TAM_MEU_BUFFER];
+unsigned long int tempo[num_ciclos];
+int values;
 
 //Funções Dadas:
 int cria_socket_local(void){
@@ -105,59 +95,47 @@ int recebe_mensagem(int socket_local, char *buffer, int TAM_BUFFER){
 }
 
 //Funções Criadas:
-float aplicar(char *string, float ganho)
+float setaValores(char *string, float ganho)
 {
-	double valor_lido;
+	double leitura_obtida;
 	char mensagem_controle[20];
 
 	sprintf(mensagem_controle,"%s%.1f",string, ganho);
 	envia_mensagem(socket_local, endereco_destino, mensagem_controle);
-	nrec = recebe_mensagem(socket_local, msg_recebida, TAM_MEU_BUFFER);
+	values = recebe_mensagem(socket_local, valor_recebido, TAM_MEU_BUFFER);
 
-	valor_lido = atof(msg_recebida + 3);
-	return valor_lido;
+	leitura_obtida = atof(valor_recebido + 3);
+	return leitura_obtida;
 }
 
-float leitura(char *string)
+float leValores(char *string)
 {
-	double valor_lido;
+	double leitura_obtida;
 
 	envia_mensagem(socket_local,endereco_destino,string);
-	nrec = recebe_mensagem(socket_local,msg_recebida,TAM_MEU_BUFFER);
+	values = recebe_mensagem(socket_local,valor_recebido,TAM_MEU_BUFFER);
 
-	valor_lido = atof(msg_recebida + 3);
-	return valor_lido;
+	leitura_obtida = atof(valor_recebido + 3);
+	return leitura_obtida;
 }
 
 void display()
 {
-	//"Informações na tela sobre a situação corrente"
-	//system("clear");
-
-	printf("\n** Operacao **\n");
-
-	printf("SPtemp:\n");
-	printf("%.2f\n",SPtemp);
-
-	printf("Ctemp:\n");
-	printf("%.2f\n",Ctemp);
-
-	printf("Etemp:\n");
-	printf("%.2f\n",Etemp);
-
-	printf("Temp:\n");
-	printf("%.2f\n",st);
-
-	printf("Ta:\n");
-	printf("%.2f\n",sta);
-
-	printf("Ti:\n");
-	printf("%.2f\n", sti);
-
-	printf("No:\n");
-	printf("%.2f",sno);
-
-	printf("\n****\n");
+	system("clear");
+	system("clear");
+	printf("Controle de uma Caldeira\n\n");
+	printf("  H_ref = %d\t\n", Href);
+	printf("  Tref = ");
+	printf("%.2f\n", Tref);
+	printf("  Valores lidos e setados no ciclo");
+	printf("  H: %f\t\t\tT: %f\n", H, T);
+	printf("  Ta: %f\t\t\tNa: %f\n", Ta, Na);
+	printf("  Ti: %f\t\t\tNi: %f\n", Ti, Ni);
+	printf("  No: %f\t\t\tNf: %f\n", No, Nf);
+	printf("  Q: %f\n", Q);
+	printf("  ErroT %f\n", erroT);
+	printf("  Qt %f\n",Qt);
+	printf("\n===========================================================");
 }
 
 //Main
@@ -169,7 +147,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr,"onde o endereço é o endereço do simulador \n");
 		fprintf(stderr,"porta é o número da porta do simulador \n");
 		fprintf(stderr,"exemplo de uso:\n");
-		fprintf(stderr,"t1 localhost 9000 \"ola\"\n");
+		fprintf(stderr,"t1 localhost 9000 \"algo\"\n");
 		exit(FALHA);
 	}
 
@@ -180,19 +158,21 @@ int main(int argc, char *argv[])
 	endereco_destino = cria_endereco_destino(argv[1], porta_destino);
 	char mensagem_iniciar[1000];
 	struct timespec t,t1;
-	long int interval = 50000000; /* 50ms*/
+	long int interval = 10000000; /* 10ms*/
 	int tela_times = 0;
 	int contador = 0;
+	int ciclosT = 0;
 
 
+	printf("Controle de Temperatura\n");
+	printf("Defina o valor de temperatura desejado (min:0;max:50): \t");
+	scanf("%f",&Tref);
 
-	printf("Escolha uma temperatura de referencia: \t");
-	scanf("%lf",&SPtemp);
-	while (SPtemp > 0 || SPtemp < 50)
-	{
-		printf("Nível não tolerado. O nível deve estar entre 0 e 50C\n");
-		printf("Insira outra temperatura de referencia: ");
-		scanf("%f", &SPtemp);
+	if (Tref < 0){
+		Tref = 0.0;
+	}
+	else if (Tref > 50){
+		Tref = 50.0;
 	}
 
 	//Temporização
@@ -207,19 +187,49 @@ int main(int argc, char *argv[])
 		clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &t, NULL);
 
 		//Leitura
-		T = leitura("st-0");  //"st-0" lê valor de T
-		H = leitura("sh-0");  //"st-0" lê valor de T
-		Ta = leitura("sta0"); //"sto0" lê valor de Ta
-		Ti = leitura("sti0"); //"sti0" lê valor de Ti
-		No = leitura("sno0"); //"sh-0" lê valor de Ta
+		Ta = leValores("sta0"); //"sto0" lê valor de Ta
+		T =  leValores("st-0");  //"st-0" lê valor de T
+		Ti = leValores("sti0"); //"sti0" lê valor de Ti
+		No = leValores("sno0"); //"sno0" lê valor de No
+		H =   leValores("sh-0"); //"sh-0" lê valor de H
 
-		C= S*P*B*H;
-		erroT = SPtemp - T;
+		erroT = Tref - T;
+		erroH = Href -  H;
+		C = S*P*B*H;
+		t0 = 10;
+		Kp = C/t0 + 40;
+		Qc = Kp*erroT;
+		Qt = Q + Ni*S*(Ti-T) + Na*S*(80-T) - (T-Ta)/R; // Q atuando no sistema
 
+		if (ciclosT == 3) {
+			if(erroT > 0) {
+				Q = MIN(1000000,Qc - (Qt - Q));
+				Qu = Q;
+				Ni = 0;
+				Nf = 0;
+			}
+			else {
+				Ni = 10;
+				Nf = 5;
+				Q = 0;
+				if(erroH > 0.05){
+					Nf = 20;
+					Ni = 12;
+				}
+				if(erroH < 0.05){
+					Ni = 15;
+					Nf = 10;
+				}
+		}
 
+		//setaValores Controle
+		setaValores("aq-",Q);
+		setaValores("ani", Ni);
+		setaValores("ana", Na);
+		setaValores("anf", Nf);
 
-		//Aplicar Controle
-		aplicar("aq-",Ctemp);
+		ciclosT = 0;
+  }
 
 		// Anotação do tempo de resposta
 		clock_gettime(CLOCK_MONOTONIC ,&t1);
@@ -242,6 +252,7 @@ int main(int argc, char *argv[])
 			tela_times = 0;
 		}
 		tela_times++;
+		ciclosT++;
 
 		/* calculate next shot */
 		t.tv_nsec += interval;
@@ -255,7 +266,6 @@ int main(int argc, char *argv[])
 	system("clear");
 	printf("****\n");
 	printf("*Simulacao Completa!*\n");
-	printf("Gerando dados!\n");
 	printf("****\n");
 
 	FILE *fp = fopen("dados.csv","w");
