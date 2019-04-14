@@ -142,7 +142,7 @@ void display()
 int main(int argc, char *argv[])
 {
 	//Verificação
-	if (argc < 2) {
+	if (argc < 3) {
 		fprintf(stderr,"Uso: t1 endereço porta \n");
 		fprintf(stderr,"onde o endereço é o endereço do simulador \n");
 		fprintf(stderr,"porta é o número da porta do simulador \n");
