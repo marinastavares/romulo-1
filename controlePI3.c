@@ -12,7 +12,7 @@
 #define FALHA 1
 #define	TAM_MEU_BUFFER	1000
 #define NSEC_PER_SEC    (1000000000) // The number of nsecs per sec
-#define contador_ciclos 100000
+#define contador_ciclos 20000
 #define S 4184
 #define P 1000
 #define B 4
