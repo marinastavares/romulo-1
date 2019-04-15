@@ -266,13 +266,13 @@ int main(int argc, char *argv[])
 	printf("*Simulacao Completa!*\n");
 	printf("****\n");
 
-	FILE *fp = fopen("tempo.csv","w");
+	FILE *fp = fopen("temposobrecarga.csv","w");
 	for(i=0;i<contador_ciclos;i++)
 	{
 		fprintf(fp, "%lu\n", tempo[i]);
 	}
 	fclose(fp);
 
-	printf("Valores de tempo: \'tempo.csv\'\n");
+	printf("Valores de tempo: \'temposobrecarga.csv\'\n");
 	system("echo \"\033[12;1H\"");
 }
