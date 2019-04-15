@@ -12,7 +12,7 @@
 #define FALHA 1
 #define	TAM_MEU_BUFFER	1000
 #define NSEC_PER_SEC    (1000000000) // The number of nsecs per sec
-#define num_ciclos 100000
+#define contador_ciclos 100000
 #define S 4184
 #define P 1000
 #define B 4
@@ -20,10 +20,10 @@
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 #define Href 2
 
-int porta_destino;
-int socket_local;
+int portaDestino;
+int socketLocal;
 int t0;
-struct sockaddr_in endereco_destino;
+struct sockaddr_in enderecoDestino;
 float T, Ta, Ti;
 float No, Nt, Ni, Nf, Na;
 float Q, Qc, Qu, Qt;
@@ -31,24 +31,24 @@ float H, C;
 float Tref, erroT, erroH;
 float Kp, Ki, Kni;
 
-char msg_enviada[TAM_MEU_BUFFER];
-char valor_recebido[TAM_MEU_BUFFER];
-unsigned long int tempo[num_ciclos];
-int values;
+char mensagemEnviada[TAM_MEU_BUFFER];
+char valorRecebido[TAM_MEU_BUFFER];
+unsigned long int tempo[contador_ciclos];
+int valores;
 
 //Funções Dadas:
-int cria_socket_local(void){
-	int socket_local;		/* Socket usado na comunicacão */
+int cria_socketLocal(void){
+	int socketLocal;		/* Socket usado na comunicacão */
 
-	socket_local = socket( PF_INET, SOCK_DGRAM, 0);
-	if (socket_local < 0) {
+	socketLocal = socket( PF_INET, SOCK_DGRAM, 0);
+	if (socketLocal < 0) {
 		perror("socket");
 		return 0;
 	}
-	return socket_local;
+	return socketLocal;
 }
 
-struct sockaddr_in cria_endereco_destino(char *destino, int porta_destino){
+struct sockaddr_in cria_endereco_destino(char *destino, int portaDestino){
 	struct sockaddr_in servidor; 	/* Endereço do servidor incluindo ip e porta */
 	struct hostent *dest_internet;	/* Endereço destino em formato próprio */
 	struct in_addr dest_ip;		/* Endereço destino em formato ip numérico */
@@ -66,26 +66,26 @@ struct sockaddr_in cria_endereco_destino(char *destino, int porta_destino){
 	memset((char *) &servidor, 0, sizeof(servidor));
 	memcpy(&servidor.sin_addr, dest_internet->h_addr_list[0], sizeof(servidor.sin_addr));
 	servidor.sin_family = AF_INET;
-	servidor.sin_port = htons(porta_destino);
+	servidor.sin_port = htons(portaDestino);
 
 	return servidor;
 }
 
-void envia_mensagem(int socket_local, struct sockaddr_in endereco_destino, char *mensagem){
+void envia_mensagem(int socketLocal, struct sockaddr_in enderecoDestino, char *mensagem){
 	/* Envia msg ao servidor */
 
-	if (sendto(socket_local, mensagem, strlen(mensagem)+1, 0, (struct sockaddr *) &endereco_destino, sizeof(endereco_destino)) < 0 )
+	if (sendto(socketLocal, mensagem, strlen(mensagem)+1, 0, (struct sockaddr *) &enderecoDestino, sizeof(enderecoDestino)) < 0 )
 	{
 		perror("sendto");
 		return;
 	}
 }
 
-int recebe_mensagem(int socket_local, char *buffer, int TAM_BUFFER){
+int recebe_mensagem(int socketLocal, char *buffer, int TAM_BUFFER){
 	int bytes_recebidos;		/* Número de bytes recebidos */
 
 	/* Espera pela msg de resposta do servidor */
-	bytes_recebidos = recvfrom(socket_local, buffer, TAM_BUFFER, 0, NULL, 0);
+	bytes_recebidos = recvfrom(socketLocal, buffer, TAM_BUFFER, 0, NULL, 0);
 	if (bytes_recebidos < 0)
 	{
 		perror("recvfrom");
@@ -94,34 +94,32 @@ int recebe_mensagem(int socket_local, char *buffer, int TAM_BUFFER){
 	return bytes_recebidos;
 }
 
-//Funções Criadas:
-float setaValores(char *string, float ganho)
+float setaValores(char *string, float novoValor)
 {
-	double leitura_obtida;
-	char mensagem_controle[20];
+	double leituraObtida;
+	char mensagemControle[20];
 
-	sprintf(mensagem_controle,"%s%.1f",string, ganho);
-	envia_mensagem(socket_local, endereco_destino, mensagem_controle);
-	values = recebe_mensagem(socket_local, valor_recebido, TAM_MEU_BUFFER);
+	sprintf(mensagemControle,"%s%.1f",string, novoValor);
+	envia_mensagem(socketLocal, enderecoDestino, mensagemControle);
+	valores = recebe_mensagem(socketLocal, valorRecebido, TAM_MEU_BUFFER); // por nsec
 
-	leitura_obtida = atof(valor_recebido + 3);
-	return leitura_obtida;
+	leituraObtida = atof(valorRecebido + 3);
+	return leituraObtida;
 }
 
 float leValores(char *string)
 {
-	double leitura_obtida;
+	double leituraObtida;
 
-	envia_mensagem(socket_local,endereco_destino,string);
-	values = recebe_mensagem(socket_local,valor_recebido,TAM_MEU_BUFFER);
+	envia_mensagem(socketLocal,enderecoDestino,string);
+	valores = recebe_mensagem(socketLocal,valorRecebido,TAM_MEU_BUFFER);
 
-	leitura_obtida = atof(valor_recebido + 3);
-	return leitura_obtida;
+	leituraObtida = atof(valorRecebido + 3);
+	return leituraObtida;
 }
 
-void display()
+void mostraTela()
 {
-	system("clear");
 	system("clear");
 	printf("Controle de uma Caldeira\n\n");
 	printf("  H_ref = %d\t\n", Href);
@@ -135,7 +133,7 @@ void display()
 	printf("  Q: %f\n", Q);
 	printf("  ErroT %f\n", erroT);
 	printf("  Qt %f\n",Qt);
-	printf("\n===========================================================");
+	printf("\n");
 }
 
 //Main
@@ -153,13 +151,13 @@ int main(int argc, char *argv[])
 
 	//Variaveis
 	int i = 0;
-	porta_destino = atoi(argv[2]);
-	socket_local = cria_socket_local();
-	endereco_destino = cria_endereco_destino(argv[1], porta_destino);
+	portaDestino = atoi(argv[2]);
+	socketLocal = cria_socketLocal();
+	enderecoDestino = cria_endereco_destino(argv[1], portaDestino);
 	char mensagem_iniciar[1000];
 	struct timespec t,t1;
-	long int interval = 10000000; /* 10ms*/
-	int tela_times = 0;
+	long int intervalo = 10000000; /* 10ms*/
+	int contadorTela = 0;
 	int contador = 0;
 	int ciclosT = 0;
 
@@ -170,9 +168,11 @@ int main(int argc, char *argv[])
 
 	if (Tref < 0){
 		Tref = 0.0;
+		printf("Somente valores positivos, setado para 0");
 	}
 	else if (Tref > 50){
 		Tref = 50.0;
+		printf("Somente valores até 50, setado para 50");
 	}
 
 	//Temporização
@@ -186,7 +186,6 @@ int main(int argc, char *argv[])
 		/* wait until next shot */
 		clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &t, NULL);
 
-		//Leitura
 		Ta = leValores("sta0"); //"sto0" lê valor de Ta
 		T =  leValores("st-0");  //"st-0" lê valor de T
 		Ti = leValores("sti0"); //"sti0" lê valor de Ti
@@ -199,7 +198,7 @@ int main(int argc, char *argv[])
 		t0 = 10;
 		Kp = C/t0 + 40;
 		Qc = Kp*erroT;
-		Qt = Q + Ni*S*(Ti-T) + Na*S*(80-T) - (T-Ta)/R; // Q atuando no sistema
+		Qt = Q + Ni*S*(Ti-T) + Na*S*(80-T) - (T-Ta)/R;
 
 		if (ciclosT == 3) {
 			if(erroT > 0) {
@@ -222,18 +221,17 @@ int main(int argc, char *argv[])
 				}
 		}
 
-		//setaValores Controle
 		setaValores("aq-",Q);
 		setaValores("ani", Ni);
 		setaValores("ana", Na);
 		setaValores("anf", Nf);
 
 		ciclosT = 0;
-  }
 
+  }
 		// Anotação do tempo de resposta
 		clock_gettime(CLOCK_MONOTONIC ,&t1);
-		if(contador < num_ciclos)
+		if(contador < contador_ciclos)
 		{
 			long sec = (t1.tv_sec - t.tv_sec);
 			long nsec = (t1.tv_nsec - t.tv_nsec);
@@ -246,16 +244,16 @@ int main(int argc, char *argv[])
 			break;
 		}
 
-		if(tela_times == 0 || tela_times >= 100)
+		if(contadorTela == 0 || contadorTela >= 100)
 		{
-			display();
-			tela_times = 0;
+			mostraTela();
+			contadorTela = 0;
 		}
-		tela_times++;
+		contadorTela++;
 		ciclosT++;
 
 		/* calculate next shot */
-		t.tv_nsec += interval;
+		t.tv_nsec += intervalo;
 
 		while (t.tv_nsec >= NSEC_PER_SEC){
            t.tv_nsec -= NSEC_PER_SEC;
@@ -268,13 +266,13 @@ int main(int argc, char *argv[])
 	printf("*Simulacao Completa!*\n");
 	printf("****\n");
 
-	FILE *fp = fopen("dados.csv","w");
-	for(i=0;i<num_ciclos;i++)
+	FILE *fp = fopen("tempo.csv","w");
+	for(i=0;i<contador_ciclos;i++)
 	{
 		fprintf(fp, "%lu\n", tempo[i]);
 	}
 	fclose(fp);
 
-	printf("Dados salvos: \'dados.csv\'\n");
+	printf("Valores de tempo: \'tempo.csv\'\n");
 	system("echo \"\033[12;1H\"");
 }
