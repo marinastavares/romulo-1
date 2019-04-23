@@ -18,7 +18,6 @@
 #define B 4
 #define R 0.001
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
-#define Href 2
 
 int portaDestino;
 int socketLocal;
@@ -29,6 +28,7 @@ float No, Nt, Ni, Nf, Na;
 float Q, Qc, Qu, Qt;
 float H, C;
 float Tref, erroT, erroH;
+float Href, erroH;
 float Kp, Ki, Kni;
 
 char mensagemEnviada[TAM_MEU_BUFFER];
@@ -162,7 +162,7 @@ int main(int argc, char *argv[])
 	int ciclosT = 0;
 
 
-	printf("Controle de Temperatura\n");
+	printf("Controle de Temperatura e Nível\n");
 	printf("Defina o valor de temperatura desejado (min:0;max:50): \t");
 	scanf("%f",&Tref);
 
@@ -173,6 +173,18 @@ int main(int argc, char *argv[])
 	else if (Tref > 50){
 		Tref = 50.0;
 		printf("Somente valores até 50, setado para 50");
+	}
+
+	printf("Defina o valor de altura desejado (min:0;max:3): \t");
+	scanf("%f",&Href);
+
+	if (Href < 0){
+		Tref = 0.0;
+		printf("Somente valores positivos, setado para 0");
+	}
+	else if (Href > 3){
+		Href = 3.0;
+		printf("Somente valores até 3, setado para 3");
 	}
 
 	//Temporização
@@ -200,49 +212,38 @@ int main(int argc, char *argv[])
 		Qc = Kp*erroT;
 		Qt = Q + Ni*S*(Ti-T) + Na*S*(80-T) - (T-Ta)/R;
 
-		if (ciclosT == 3) {
+		if (ciclosT == 5) {
+
 			if(erroT > 0) {
 				Q = MIN(1000000,Qc - (Qt - Q));
 				Qu = Q;
-				Ni = 0;
-				Nf = 0;
 			}
 			else {
-				Ni = 10;
-				Nf = 5;
 				Q = 0;
-				if(erroH > 0.05){
-					Nf = 20;
-					Ni = 12;
-				}
-				if(erroH < 0.05){
-					Ni = 15;
-					Nf = 10;
-				}
-		}
+			}
 
-		setaValores("aq-",Q);
-		setaValores("ani", Ni);
-		setaValores("ana", Na);
-		setaValores("anf", Nf);
+			setaValores("aq-",Q);
+			setaValores("ani", Ni);
+			setaValores("ana", Na);
+			setaValores("anf", Nf);
 
-		ciclosT = 0;
+			ciclosT = 0;
 
 		// Anotação do tempo de resposta
-		clock_gettime(CLOCK_MONOTONIC ,&t1);
-		if(contador < contador_ciclos)
-		{
-			long sec = (t1.tv_sec - t.tv_sec);
-			long nsec = (t1.tv_nsec - t.tv_nsec);
+			clock_gettime(CLOCK_MONOTONIC ,&t1);
+			if(contador < contador_ciclos)
+			{
+				long sec = (t1.tv_sec - t.tv_sec);
+				long nsec = (t1.tv_nsec - t.tv_nsec);
 
-        	tempo[contador] = sec*NSEC_PER_SEC + nsec;
-			contador++;
-		}
-		else
-		{
-			break;
-		}
-  }
+				tempo[contador] = sec*NSEC_PER_SEC + nsec;
+				contador++;
+			}
+			else
+			{
+				break;
+			}
+  		}
 
 		if(contadorTela == 0 || contadorTela >= 100)
 		{
@@ -252,7 +253,6 @@ int main(int argc, char *argv[])
 		contadorTela++;
 		ciclosT++;
 
-		/* calculate next shot */
 		t.tv_nsec += intervalo;
 
 		while (t.tv_nsec >= NSEC_PER_SEC){
