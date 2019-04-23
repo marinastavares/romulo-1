@@ -6,7 +6,7 @@
 
 pthread_t t1,t2,t3;
 
-void main_1(void) {
+void main_t1(void) {
     while(1) {
         printf("thread 1\n");
         sleep(1);
@@ -14,7 +14,7 @@ void main_1(void) {
 }
 
 void main() {
-    printf('');
+    printf("Thread 1");
 
     pthread_create(&t1, NULL, (void *) main_t1, NULL);
 }
