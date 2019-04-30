@@ -8,6 +8,8 @@
 #include <stdlib.h>
 #include <netdb.h>
 #include <time.h>
+#include <unistd.h>
+#include <pthread.h>
 
 #define FALHA 1
 #define	TAM_MEU_BUFFER	1000
@@ -35,6 +37,10 @@ char mensagemEnviada[TAM_MEU_BUFFER];
 char valorRecebido[TAM_MEU_BUFFER];
 unsigned long int tempo[contador_ciclos];
 int valores;
+
+pthread_t thread_temperatura;
+
+pthread_mutex_t mutex_temperatura = PTHREAD_MUTEX_INITIALIZER;
 
 //Funções Dadas:
 int cria_socketLocal(void){
@@ -136,6 +142,34 @@ void mostraTela()
 	printf("\n");
 }
 
+void controle_temperatura(void) {
+
+	Ta = leValores("sta0"); //"sto0" lê valor de Ta
+	T =  leValores("st-0");  //"st-0" lê valor de T
+	Ti = leValores("sti0"); //"sti0" lê valor de Ti
+	H =   leValores("sh-0"); //"sh-0" lê valor de H
+
+	pthread_mutex_lock(&mutex_temperatura);
+	erroT = Tref - T;
+	pthread_mutex_unlock(&mutex_temperatura);
+
+	C = S*P*B*H;
+	t0 = 10;
+	Kp = C/t0 + 40;
+	Qc = Kp*erroT;
+	Qt = Q + Ni*S*(Ti-T) + Na*S*(80-T) - (T-Ta)/R;
+
+	if(erroT > 0) {
+		Q = MIN(1000000,Qc - (Qt - Q));
+		Qu = Q;
+	}
+	else {
+		Q = 0;
+	}
+
+	setaValores("aq-",Q);
+}
+
 //Main
 int main(int argc, char *argv[])
 {
@@ -192,6 +226,9 @@ int main(int argc, char *argv[])
 	/* start after one second */
     t.tv_sec++;
 
+    pthread_create(&thread_temperatura, NULL, (void *) controle_temperatura, NULL);
+
+
 	//Principal
 	while(1)
 	{
@@ -214,18 +251,7 @@ int main(int argc, char *argv[])
 
 		if (ciclosT == 5) {
 
-			if(erroT > 0) {
-				Q = MIN(1000000,Qc - (Qt - Q));
-				Qu = Q;
-			}
-			else {
-				Q = 0;
-			}
-
-			setaValores("aq-",Q);
-			setaValores("ani", Ni);
-			setaValores("ana", Na);
-			setaValores("anf", Nf);
+			pthread_join(thread_temperatura, NULL);
 
 			ciclosT = 0;
 
