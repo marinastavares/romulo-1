@@ -23,24 +23,25 @@
 
 int portaDestino;
 int socketLocal;
-int t0;
 struct sockaddr_in enderecoDestino;
-float T, Ta, Ti;
 float No, Nt, Ni, Nf, Na;
-float Q, Qc, Qu, Qt;
-float H, C;
-float Tref, erroT, erroH;
-float Href, erroH;
+float Q, Qu, Qt;
+float Tref;
+float Href;
 float Kp, Ki, Kni;
+int esfriando;
 
 char mensagemEnviada[TAM_MEU_BUFFER];
 char valorRecebido[TAM_MEU_BUFFER];
 unsigned long int tempo[contador_ciclos];
 int valores;
 
-pthread_t thread_temperatura;
+pthread_t thread_temperatura, thread_nivel, thread_tela;
 
 pthread_mutex_t mutex_temperatura = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex_nivel = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex_tela = PTHREAD_MUTEX_INITIALIZER;
+
 
 //Funções Dadas:
 int cria_socketLocal(void){
@@ -124,51 +125,187 @@ float leValores(char *string)
 	return leituraObtida;
 }
 
-void mostraTela()
-{
-	system("clear");
-	printf("Controle de uma Caldeira\n\n");
-	printf("  H_ref = %d\t\n", Href);
-	printf("  Tref = ");
-	printf("%.2f\n", Tref);
-	printf("  Valores lidos e setados no ciclo");
-	printf("  H: %f\t\t\tT: %f\n", H, T);
-	printf("  Ta: %f\t\t\tNa: %f\n", Ta, Na);
-	printf("  Ti: %f\t\t\tNi: %f\n", Ti, Ni);
-	printf("  No: %f\t\t\tNf: %f\n", No, Nf);
-	printf("  Q: %f\n", Q);
-	printf("  ErroT %f\n", erroT);
-	printf("  Qt %f\n",Qt);
-	printf("\n");
-}
+/* void mostraTela(void){
+	float T, Ta, Ti, H, No;
+
+	int interval = 100000000; 
+	
+	struct timespec t;
+	clock_gettime(CLOCK_MONOTONIC ,&t);
+	
+	t.tv_sec++; // Comeca apos 1 segundo
+	
+	while(1) {
+		Ta = leValores("sta0"); //"sto0" lê valor de Ta
+		T =  leValores("st-0");  //"st-0" lê valor de T
+		Ti = leValores("sti0"); //"sti0" lê valor de Ti
+		H =   leValores("sh-0"); //"sh-0" lê valor de H
+		No = leValores("sno0");
+
+		system("clear");
+
+		printf("Controle de uma Caldeira\n\n");
+		printf("  H_ref = %d\t\n", Href);
+		printf("  Tref = ");
+		printf("%.2f\n", Tref);
+		printf("  Valores lidos e setados no ciclo");
+		printf("  H: %f\t\t\tT: %f\n", H, T);
+		printf("  Ta: %f\t\t\tNa: %f\n", Ta, Na);
+		printf("  Ti: %f\t\t\tNi: %f\n", Ti, Ni);
+		printf("  No: %f\t\t\tNf: %f\n", No, Nf);
+		printf("  Q: %f\n", Q);
+		printf("  Qt %f\n",Qt);
+		printf("\n");
+
+		t.tv_nsec += interval; // Calcula o proximo momento de acordar
+		
+		while (t.tv_nsec >= NSEC_PER_SEC) {
+			t.tv_nsec -= NSEC_PER_SEC;
+			t.tv_sec++;
+		}
+	}
+} */
 
 void controle_temperatura(void) {
 
-	Ta = leValores("sta0"); //"sto0" lê valor de Ta
-	T =  leValores("st-0");  //"st-0" lê valor de T
-	Ti = leValores("sti0"); //"sti0" lê valor de Ti
-	H =   leValores("sh-0"); //"sh-0" lê valor de H
+	float T, Ta, Ti, H, erroT, C;
+	float Qc;
+	int t0;
 
-	pthread_mutex_lock(&mutex_temperatura);
-	erroT = Tref - T;
-	pthread_mutex_unlock(&mutex_temperatura);
+	int interval = 50000000; /* 50ms*/
+	
+	struct timespec t;
+	clock_gettime(CLOCK_MONOTONIC ,&t);
+	
+	t.tv_sec++; // Comeca apos 1 segundo
 
-	C = S*P*B*H;
-	t0 = 10;
-	Kp = C/t0 + 40;
-	Qc = Kp*erroT;
-	Qt = Q + Ni*S*(Ti-T) + Na*S*(80-T) - (T-Ta)/R;
 
-	if(erroT > 0) {
-		Q = MIN(1000000,Qc - (Qt - Q));
-		Qu = Q;
+	while(1){
+	
+		Ta = leValores("sta0"); //"sto0" lê valor de Ta
+		T =  leValores("st-0");  //"st-0" lê valor de T
+		Ti = leValores("sti0"); //"sti0" lê valor de Ti
+		H =   leValores("sh-0"); //"sh-0" lê valor de H
+	
+		pthread_mutex_lock(&mutex_temperatura);
+		erroT = Tref - T;
+		pthread_mutex_unlock(&mutex_temperatura);
+	
+		C = S*P*B*H;
+		t0 = 10;
+		Kp = C/t0 + 40;
+		Qc = Kp*erroT;
+		Qt = Q + Ni*S*(Ti-T) + Na*S*(80-T) - (T-Ta)/R;
+	
+		if(erroT > 0) {
+			Q = MIN(1000000,Qc - (Qt - Q));
+			Qu = Q;
+			esfriando = 0;
+		}
+		else {
+			Q = 0;
+			esfriando = 1;
+		}
+	
+		setaValores("aq-",Q);
+
+		t.tv_nsec += interval; // Calcula o proximo momento de acordar
+		
+		while (t.tv_nsec >= NSEC_PER_SEC) {
+			t.tv_nsec -= NSEC_PER_SEC;
+			t.tv_sec++;
+		}
 	}
-	else {
-		Q = 0;
-	}
-
-	setaValores("aq-",Q);
 }
+
+
+void controle_nivel(void) {
+
+	float Kp, Ki, H, erroH, integralErro, Nt, No, Natu;
+	integralErro = 0;
+	int t0 = 10;
+	Kp = 1000;
+	Ki = 10;
+	
+	int interval = 70000000; /* 70ms*/
+	
+	struct timespec t;
+	clock_gettime(CLOCK_MONOTONIC ,&t);
+	
+	t.tv_sec++; // Comeca apos 1 segundo
+	
+	while(1)
+	{
+		if(fim) pthread_exit(NULL);
+		
+		clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &t, NULL);
+		
+		H =   leValores("sh-0"); //"sh-0" lê valor de H
+		
+		pthread_mutex_lock(&mutex_nivel);
+		erroH = href - H;
+		pthread_mutex_unlock(&mutex_nivel);
+		
+		integralErro += erroH*0.07;
+		Nt = Kp*erroH + Ki*integralErro;
+			
+		// Nt = Ni + Na - Nf - No
+		// No eh perturbacao
+		No =   leValores("sno0"); //"sh-0" lê valor de H
+		Natu = Ni + Na - Nf - No;
+		
+		if(erroH > 0) // Deve-se encher
+		{
+			Ni = MIN(100, Nt-Natu);
+			Nf = 0;
+			Natu = Ni + Na - Nf - No;
+			if(esfriando == 0)
+			{
+				// Ativa Na;
+				if(Natu == Nt){
+					if(Ni <= 10)
+					{
+						Na = Ni;
+						Ni = 0;
+					}
+					else {
+						Ni -= 10;
+						Na = 10;
+					}
+					Natu = Ni + Na - Nf - No;
+				} else {
+					Na = MIN(10, Nt-Natu);
+					Natu = Ni + Na - Nf - No;
+				}
+			} else Na = 0;
+			
+		} else if(erroH < 0){ // Deve-se esvaziar
+			Na = 0;
+			Ni = No;
+			Nf = MIN(100, -Nt);
+			Natu = Ni + Na - Nf - No;
+			integralErro = 0;
+		} else {
+			Na = 0;
+			Ni = 0;
+			Nf = 0;
+			Natu =  -No;
+		}
+			
+
+		setaValores( "ani", Ni);
+		setaValores( "ana", Na);
+		setaValores( "anf", Nf);
+		
+		t.tv_nsec += interval; // Calcula o proximo momento de acordar
+		
+		while (t.tv_nsec >= NSEC_PER_SEC) {
+			t.tv_nsec -= NSEC_PER_SEC;
+			t.tv_sec++;
+		}
+	}
+}
+
 
 //Main
 int main(int argc, char *argv[])
@@ -221,71 +358,15 @@ int main(int argc, char *argv[])
 		printf("Somente valores até 3, setado para 3");
 	}
 
-	//Temporização
-	clock_gettime(CLOCK_MONOTONIC ,&t);
-	/* start after one second */
-    t.tv_sec++;
-
     pthread_create(&thread_temperatura, NULL, (void *) controle_temperatura, NULL);
+	pthread_create(&thread_nivel, NULL, (void *) controle_nivel, NULL);
+	//pthread_create(&thread_tela, NULL, (void *) mostraTela, NULL);
+	
+	pthread_join(thread_temperatura, NULL);
+	pthread_join(thread_nivel, NULL);
+	//pthread_join(thread_tela, NULL);
 
 
-	//Principal
-	while(1)
-	{
-		/* wait until next shot */
-		clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &t, NULL);
-
-		Ta = leValores("sta0"); //"sto0" lê valor de Ta
-		T =  leValores("st-0");  //"st-0" lê valor de T
-		Ti = leValores("sti0"); //"sti0" lê valor de Ti
-		No = leValores("sno0"); //"sno0" lê valor de No
-		H =   leValores("sh-0"); //"sh-0" lê valor de H
-
-		erroT = Tref - T;
-		erroH = Href -  H;
-		C = S*P*B*H;
-		t0 = 10;
-		Kp = C/t0 + 40;
-		Qc = Kp*erroT;
-		Qt = Q + Ni*S*(Ti-T) + Na*S*(80-T) - (T-Ta)/R;
-
-		if (ciclosT == 5) {
-
-			pthread_join(thread_temperatura, NULL);
-
-			ciclosT = 0;
-
-		// Anotação do tempo de resposta
-			clock_gettime(CLOCK_MONOTONIC ,&t1);
-			if(contador < contador_ciclos)
-			{
-				long sec = (t1.tv_sec - t.tv_sec);
-				long nsec = (t1.tv_nsec - t.tv_nsec);
-
-				tempo[contador] = sec*NSEC_PER_SEC + nsec;
-				contador++;
-			}
-			else
-			{
-				break;
-			}
-  		}
-
-		if(contadorTela == 0 || contadorTela >= 100)
-		{
-			mostraTela();
-			contadorTela = 0;
-		}
-		contadorTela++;
-		ciclosT++;
-
-		t.tv_nsec += intervalo;
-
-		while (t.tv_nsec >= NSEC_PER_SEC){
-           t.tv_nsec -= NSEC_PER_SEC;
-           t.tv_sec++;
-        }
-	}
 
 	system("clear");
 	printf("****\n");
