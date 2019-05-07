@@ -22,7 +22,7 @@
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 
 int portaDestino;
-int socketLocal;
+int socketLocal, socketLocal2;
 struct sockaddr_in enderecoDestino;
 float No, Nt, Ni, Nf, Na;
 float Q, Qu, Qt;
@@ -33,6 +33,7 @@ int esfriando;
 
 char mensagemEnviada[TAM_MEU_BUFFER];
 char valorRecebido[TAM_MEU_BUFFER];
+char valorRecebido2[TAM_MEU_BUFFER];
 unsigned long int tempo[contador_ciclos];
 int valores;
 
@@ -125,46 +126,48 @@ float leValores(char *string)
 	return leituraObtida;
 }
 
-/* void mostraTela(void){
-	float T, Ta, Ti, H, No;
+float leValores_tela(char *string)
+{
+	double leituraObtida;
 
-	int interval = 100000000; 
-	
-	struct timespec t;
-	clock_gettime(CLOCK_MONOTONIC ,&t);
-	
-	t.tv_sec++; // Comeca apos 1 segundo
-	
-	while(1) {
-		Ta = leValores("sta0"); //"sto0" lê valor de Ta
-		T =  leValores("st-0");  //"st-0" lê valor de T
-		Ti = leValores("sti0"); //"sti0" lê valor de Ti
-		H =   leValores("sh-0"); //"sh-0" lê valor de H
-		No = leValores("sno0");
+	envia_mensagem(socketLocal2,enderecoDestino,string);
+	valores = recebe_mensagem(socketLocal2,valorRecebido2,TAM_MEU_BUFFER);
 
+	leituraObtida = atof(valorRecebido2 + 3);
+	return leituraObtida;
+}
+
+void mostraTela(void){
+	float Ti, Ta, No, H, T;
+	
+	while(1)
+	{
+		T = leValores_tela( "st-0");
+		H = leValores_tela( "sh-0");
+		Ti = leValores_tela( "sti0");
+		Ta = leValores_tela( "sta0");
+		No = leValores_tela("sno0");
+		pthread_mutex_lock(&mutex_temperatura);
+		pthread_mutex_lock(&mutex_nivel);
 		system("clear");
-
-		printf("Controle de uma Caldeira\n\n");
-		printf("  H_ref = %d\t\n", Href);
-		printf("  Tref = ");
-		printf("%.2f\n", Tref);
-		printf("  Valores lidos e setados no ciclo");
+		system("clear");
+		printf("================== CONTROLE DO AQUECEDOR ==================\n\n");
+		printf("  H_ref = %f\t\tT_ref = %f\n\n", Href, Tref);
+		printf("  Valores atuais:\n");
 		printf("  H: %f\t\t\tT: %f\n", H, T);
 		printf("  Ta: %f\t\t\tNa: %f\n", Ta, Na);
 		printf("  Ti: %f\t\t\tNi: %f\n", Ti, Ni);
 		printf("  No: %f\t\t\tNf: %f\n", No, Nf);
 		printf("  Q: %f\n", Q);
-		printf("  Qt %f\n",Qt);
-		printf("\n");
-
-		t.tv_nsec += interval; // Calcula o proximo momento de acordar
+		printf("\n===========================================================\n\n");
+	//	fflush(stdout);
+		pthread_mutex_unlock(&mutex_nivel);
+		pthread_mutex_unlock(&mutex_temperatura);
 		
-		while (t.tv_nsec >= NSEC_PER_SEC) {
-			t.tv_nsec -= NSEC_PER_SEC;
-			t.tv_sec++;
-		}
+		sleep(1);
+		
 	}
-} */
+}
 
 void controle_temperatura(void) {
 
@@ -235,15 +238,13 @@ void controle_nivel(void) {
 	t.tv_sec++; // Comeca apos 1 segundo
 	
 	while(1)
-	{
-		if(fim) pthread_exit(NULL);
-		
+	{		
 		clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &t, NULL);
 		
 		H =   leValores("sh-0"); //"sh-0" lê valor de H
 		
 		pthread_mutex_lock(&mutex_nivel);
-		erroH = href - H;
+		erroH = Href - H;
 		pthread_mutex_unlock(&mutex_nivel);
 		
 		integralErro += erroH*0.07;
@@ -360,11 +361,11 @@ int main(int argc, char *argv[])
 
     pthread_create(&thread_temperatura, NULL, (void *) controle_temperatura, NULL);
 	pthread_create(&thread_nivel, NULL, (void *) controle_nivel, NULL);
-	//pthread_create(&thread_tela, NULL, (void *) mostraTela, NULL);
+	pthread_create(&thread_tela, NULL, (void *) mostraTela, NULL);
 	
 	pthread_join(thread_temperatura, NULL);
 	pthread_join(thread_nivel, NULL);
-	//pthread_join(thread_tela, NULL);
+	pthread_join(thread_tela, NULL);
 
 
 
