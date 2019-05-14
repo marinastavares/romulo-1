@@ -126,7 +126,7 @@ float leValores(char *string)
 	return leituraObtida;
 }
 
-float leValores_tela(char *string)
+/*float leValores_tela(char *string)
 {
 	double leituraObtida;
 
@@ -135,18 +135,18 @@ float leValores_tela(char *string)
 
 	leituraObtida = atof(valorRecebido2 + 3);
 	return leituraObtida;
-}
+}*/
 
-void mostraTela(void){
+/*void mostraTela(void){
 	float Ti, Ta, No, H, T;
 	
 	while(1)
 	{
-		T = leValores_tela( "st-0");
-		H = leValores_tela( "sh-0");
-		Ti = leValores_tela( "sti0");
-		Ta = leValores_tela( "sta0");
-		No = leValores_tela("sno0");
+		//T = leValores_tela( "st-0");
+		//H = leValores_tela( "sh-0");
+		//Ti = leValores_tela( "sti0");
+		//Ta = leValores_tela( "sta0");
+		//No = leValores_tela("sno0");
 		pthread_mutex_lock(&mutex_temperatura);
 		pthread_mutex_lock(&mutex_nivel);
 		system("clear");
@@ -167,7 +167,7 @@ void mostraTela(void){
 		sleep(1);
 		
 	}
-}
+} */
 
 void controle_temperatura(void) {
 
@@ -181,6 +181,7 @@ void controle_temperatura(void) {
 	clock_gettime(CLOCK_MONOTONIC ,&t);
 	
 	t.tv_sec++; // Comeca apos 1 segundo
+	printf("Entrou no controle de temperatura \n");
 
 
 	while(1){
@@ -189,9 +190,12 @@ void controle_temperatura(void) {
 		T =  leValores("st-0");  //"st-0" lê valor de T
 		Ti = leValores("sti0"); //"sti0" lê valor de Ti
 		H =   leValores("sh-0"); //"sh-0" lê valor de H
+
+		printf("T = %f \n",T);
 	
 		pthread_mutex_lock(&mutex_temperatura);
 		erroT = Tref - T;
+
 		pthread_mutex_unlock(&mutex_temperatura);
 	
 		C = S*P*B*H;
@@ -199,6 +203,7 @@ void controle_temperatura(void) {
 		Kp = C/t0 + 40;
 		Qc = Kp*erroT;
 		Qt = Q + Ni*S*(Ti-T) + Na*S*(80-T) - (T-Ta)/R;
+		printf("Qt = %f \n",Qt);
 	
 		if(erroT > 0) {
 			Q = MIN(1000000,Qc - (Qt - Q));
@@ -211,6 +216,7 @@ void controle_temperatura(void) {
 		}
 	
 		setaValores("aq-",Q);
+		printf("Q = %f \n",Q);
 
 		t.tv_nsec += interval; // Calcula o proximo momento de acordar
 		
@@ -236,6 +242,8 @@ void controle_nivel(void) {
 	clock_gettime(CLOCK_MONOTONIC ,&t);
 	
 	t.tv_sec++; // Comeca apos 1 segundo
+
+	printf("Entrou no controle de nivel \n");
 	
 	while(1)
 	{		
@@ -254,6 +262,8 @@ void controle_nivel(void) {
 		// No eh perturbacao
 		No =   leValores("sno0"); //"sh-0" lê valor de H
 		Natu = Ni + Na - Nf - No;
+
+		printf("Entrou no controle de nivel dentro \n");
 		
 		if(erroH > 0) // Deve-se encher
 		{
@@ -361,11 +371,11 @@ int main(int argc, char *argv[])
 
     pthread_create(&thread_temperatura, NULL, (void *) controle_temperatura, NULL);
 	pthread_create(&thread_nivel, NULL, (void *) controle_nivel, NULL);
-	pthread_create(&thread_tela, NULL, (void *) mostraTela, NULL);
+	//pthread_create(&thread_tela, NULL, (void *) mostraTela, NULL);
 	
 	pthread_join(thread_temperatura, NULL);
 	pthread_join(thread_nivel, NULL);
-	pthread_join(thread_tela, NULL);
+	// pthread_join(thread_tela, NULL);
 
 
 
