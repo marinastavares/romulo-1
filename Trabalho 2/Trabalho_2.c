@@ -26,8 +26,6 @@
 // Variáveis para o cálculo do sistema
 float No, Nt, Ni, Nf, Na;
 float Q, Qu, Qt;
-float Tref;
-float Href;
 float Kp, Ki, Kni;
 int esfriando, explosao;
 
@@ -56,6 +54,8 @@ pthread_t temperatura, nivel, tela, buffer, dados_arquivo, alarme;
 pthread_mutex_t mutex_socket = PTHREAD_MUTEX_INITIALIZER;
 // Mutex sobre alarmes
 pthread_mutex_t mutex_alarmes = PTHREAD_MUTEX_INITIALIZER;
+// Mutex sobre alarmes
+pthread_mutex_t mutex_tela = PTHREAD_MUTEX_INITIALIZER;
 // Mutex`s sobre as referencias
 pthread_mutex_t mutex_nivel = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_temperatura = PTHREAD_MUTEX_INITIALIZER;
@@ -181,7 +181,7 @@ void mostraTela(void)
 	float T,Ta,Ti,No,H;
 
 	while(1){
-	pthread_mutex_lock(&mutex_escrita);
+	pthread_mutex_lock(&mutex_tela);
 	T = leValores("st-0");
 	Ta = leValores("sta0");
 	Ti = leValores("sti0");
@@ -206,7 +206,7 @@ void mostraTela(void)
 	}
 	printf("\n*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-\n");
 
-	pthread_mutex_unlock(&mutex_escrita);
+	pthread_mutex_unlock(&mutex_tela);
 	sleep(1);
 	}
 }
@@ -248,7 +248,6 @@ void controleTemperatura(){
 	float Qc;
 	int t0;
 	Kp_temp = 500000;
-	float T;
 	long int interval = 50000000; /* 50ms*/
 	/* start after one second */
     	clock_gettime(CLOCK_MONOTONIC ,&t);
